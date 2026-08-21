@@ -1,107 +1,220 @@
 <div align="center">
 
-# 🛡️ SOC-Lab
+# Dual-SIEM Active Directory Monitoring Lab
 
-### Enterprise Active Directory Security Lab
+![Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%7C%20Splunk-blue?style=flat-square)
+![Environment](https://img.shields.io/badge/Environment-VMware%20%7C%20Azure%20Arc-orange?style=flat-square)
 
-![Platform](https://img.shields.io/badge/Platform-VMware%20Workstation-607078?style=flat-square)
-![Domain](https://img.shields.io/badge/Domain-dc--01.lab-blue?style=flat-square)
-![SIEM](https://img.shields.io/badge/SIEM-Microsoft%20Sentinel-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Active%20Build-yellow?style=flat-square)
+Real-time Active Directory security telemetry ingested simultaneously into Microsoft Sentinel and Splunk Enterprise for dual-platform detection and investigation.
 
-`ACTIVE DIRECTORY` · `DETECTION ENGINEERING` · `SOC` · `DFIR` · `MITRE ATT&CK`
+`KALI ATTACK → DC TELEMETRY → DUAL SIEM → KQL + SPL QUERIES`
 
 </div>
 
 ---
 
-## // OVERVIEW
+## Overview
 
-A multi-system cybersecurity home lab simulating a small enterprise environment — built for offensive security practice, SOC operations, detection engineering, and digital forensics.
+This project demonstrates a production-grade dual-SIEM monitoring architecture built around a Windows Active Directory lab. Windows security telemetry from a VMware-hosted domain controller is collected simultaneously by **Microsoft Sentinel** (cloud) and **Splunk Enterprise** (on-prem), allowing the same attack activity to be investigated using both **KQL** (Kusto Query Language) and **SPL** (Splunk Processing Language).
 
-The environment pairs an isolated Active Directory network with controlled internet access, so I can attack from Kali Linux, generate real Windows telemetry, investigate that activity in Microsoft Sentinel, and document the full **attack → detection → remediation** lifecycle end to end.
+**The goal:** Develop transferable detection and investigation skills rather than relying on a single security platform's interface or paradigm.
+
+---
+
+## Architecture
 
 ```
-RECON → ENUMERATION → ATTACK/SIMULATION → TELEMETRY → DETECTION
-   → INVESTIGATION → IMPACT ANALYSIS → REMEDIATION → DOCUMENTATION
+                         KALI01
+                    192.168.70.10
+                          |
+                    Attack Activity
+                    (SMB auth failures,
+                     Kerberos attacks,
+                     etc.)
+                          |
+                          v
+                        DC01
+                    192.168.70.20
+                 Windows Server 2022
+                   Active Directory
+                          |
+              +-----------+-----------+
+              |                       |
+              v                       v
+        Microsoft Sentinel          Splunk
+             (Cloud)             (On-Prem)
+             / AMA               / UF
+             / DCR               / Port 1137
+              |                       |
+              v                       v
+        Log Analytics          SPLUNK-01
+        Workspace            192.168.70.80
+        (Event table)            (Indexer)
+                                   |
+                            (Both ingest
+                             same events)
 ```
 
 ---
 
-## // LAB ARCHITECTURE
+## Environment
 
-**Virtualization:** VMware Workstation
+| System | Purpose | Lab Address | OS/Role |
+|---|---|---|---|
+| **KALI01** | Offensive security workstation | 192.168.70.10 | Kali Linux |
+| **DC01** | Domain Controller | 192.168.70.20 | Windows Server 2022 / AD |
+| **WIN-01** | Domain workstation | 192.168.70.30 | Windows 10 (planned) |
+| **SPLUNK-01** | Splunk Enterprise indexer | 192.168.70.80 | Ubuntu Server |
 
-**Networks**
-
-| Network | Purpose |
-|---|---|
-| `VMnet8` (NAT) | Internet access — updates, Azure connectivity, HTB VPN |
-| `VMnet7` (host-only) | Isolated security lab network — `192.168.70.0/24`, no default gateway |
-
-**Systems**
-
-| Host | IP | Role |
-|---|:---:|---|
-| `KALI01` | `192.168.70.10` | Offensive security workstation |
-| `DC-01` | `192.168.70.20` | Windows Server 2022 — Active Directory Domain Controller |
-| `WIN-01` | `192.168.70.30` | Windows domain workstation |
-| `WIN-02` | — | Secondary domain endpoint |
-
-*Planned:* Splunk, Linux security monitoring, web application testing, phishing analysis, and DFIR nodes.
-
-Kali runs dual interfaces so attack traffic stays isolated from the physical network while still allowing selected hosts a separate path to the internet:
-
-```
-eth0 → VMware NAT     → Internet / Updates / Hack The Box
-eth1 → VMnet7          → 192.168.70.10/24 (internal lab, no gateway)
-```
+**Network:** Isolated lab network uses VMware VMnet7 on `192.168.70.0/24`. Systems requiring internet connectivity also use a separate VMware NAT interface.
 
 ---
 
-## // ACTIVE DIRECTORY ENVIRONMENT
+## Microsoft Sentinel Pipeline
 
-Domain: **`dc-01.lab`**
+### Onboarding
 
-The domain controller provides:
-
-- Active Directory Domain Services
-- DNS
-- Kerberos authentication
-- LDAP
-- SMB
-- Group Policy
-- Organizational Units, domain users and groups
-
-[**BadBlood**](https://github.com/davidprowe/BadBlood) is integrated to populate a larger, more realistic AD environment — built specifically for enumeration practice, BloodHound analysis, and attack-path discovery.
-
----
-
-## // MICROSOFT SENTINEL INTEGRATION
-
-The domain controller is connected via **Azure Arc** and the **Azure Monitor Agent**, forwarding Windows security telemetry into Microsoft Sentinel.
-
-**Pipeline:**
+DC01 was onboarded to Azure using **Azure Arc**. Once registered, the monitoring pipeline became:
 
 ```
-KALI01
-  ↓  attack / authentication activity
-DC-01 / WIN-01
-  ↓  Windows Security Events
-Azure Monitor Agent
+DC01
   ↓
-Data Collection Rule  (DCR-SOC-LAB-WINDOWS)
+Windows Event Logs (Security, System, Application)
   ↓
-Log Analytics
+Azure Monitor Agent (AMA)
+  ↓
+Data Collection Rule (DCR)
+  ↓
+Log Analytics Workspace
   ↓
 Microsoft Sentinel
 ```
 
-The `DCR-SOC-LAB-WINDOWS` rule collects Windows Security audit **success and failure** events from every monitored host.
+### Data Collection Rule
 
-### Attack validation
+**Name:** `DCR-SOC-LAB-WINDOWS`
 
-Used **NetExec** to confirm connectivity and generate controlled authentication failures against the DC:
+**Targets:** Windows Security audit events from DC01
+
+**Validation:** Successful ingestion confirmed via the `Event` table in Log Analytics.
+
+### Sentinel Query - Validation
+
+```kusto
+Event
+| where EventID == 4625
+| sort by TimeGenerated desc
+| take 50
+```
+
+**Results:** Events originating from `DC01.dc-01.lab` with source `Microsoft-Windows-Security-Auditing` successfully ingested.
+
+---
+
+## Splunk Pipeline
+
+### Splunk Infrastructure
+
+| Component | Specification |
+|---|---|
+| Hostname | SPLUNK-01 |
+| Lab IP | 192.168.70.80 |
+| Web UI | TCP/8000 |
+| Receiver Port | TCP/1137 (non-default, intentional) |
+
+**Note:** Non-standard port 1137/TCP is used within the isolated lab environment and documented throughout for reproducibility.
+
+### Splunk Universal Forwarder (DC01)
+
+Installed on DC01 to transmit Windows event logs to SPLUNK-01.
+
+**Output Configuration:**
+
+```ini
+[tcpout]
+defaultGroup = lab_indexers
+
+[tcpout:lab_indexers]
+server = 192.168.70.80:1137
+```
+
+### Windows Event Inputs
+
+**inputs.conf on DC01:**
+
+```ini
+[WinEventLog://Security]
+disabled = 0
+index = windows
+renderXml = true
+
+[WinEventLog://System]
+disabled = 0
+index = windows
+renderXml = true
+
+[WinEventLog://Application]
+disabled = 0
+index = windows
+renderXml = true
+
+[WinEventLog://Microsoft-Windows-PowerShell/Operational]
+disabled = 0
+index = powershell
+renderXml = true
+
+[WinEventLog://Microsoft-Windows-Sysmon/Operational]
+disabled = 0
+index = sysmon
+renderXml = true
+```
+
+### Custom Indexes
+
+Three indexes created on SPLUNK-01:
+
+- `windows` — Windows Security, System, Application events
+- `powershell` — PowerShell Script Block Logging
+- `sysmon` — Sysmon operational telemetry
+
+### Splunk Validation
+
+**1. Forwarder Connectivity** (from DC01):
+
+```powershell
+Test-NetConnection 192.168.70.80 -Port 1137
+```
+
+**Output:**
+
+```
+TcpTestSucceeded : True
+```
+
+**2. Forwarder Status** (from DC01):
+
+```
+Active forwards:
+192.168.70.80:1137
+```
+
+**3. Data in Splunk:**
+
+```spl
+index=windows
+| stats count by host, source, sourcetype
+```
+
+**Results:** Confirmed telemetry from `DC01` across all three indexes.
+
+---
+
+## Attack-to-Detection Validation
+
+### Test Attack
+
+Failed SMB authentication from Kali Linux against DC01:
 
 ```bash
 nxc smb 192.168.70.20 \
@@ -109,129 +222,153 @@ nxc smb 192.168.70.20 \
   -p 'WrongPassword123!'
 ```
 
-Result: `STATUS_LOGON_FAILURE` — confirming end-to-end communication between the attacker box and the AD environment, while generating telemetry investigable through Windows Event Logs and Sentinel.
+**Result:** `STATUS_LOGON_FAILURE`
 
-Additional enumeration confirmed: Windows Server 2022, SMB on TCP/445, SMB signing enabled, SMBv1 disabled, and AD domain identification via NetExec's fingerprinting.
+**Telemetry Generated:** Windows Event ID **4625** (Failed Logon)
 
----
+### Same Event, Dual Investigation
 
-## // DETECTION ENGINEERING
+The same security event is visible in both platforms:
 
-The lab is built to correlate offensive actions directly with the defensive telemetry they generate.
+**Microsoft Sentinel (KQL):**
 
-**Planned Sentinel detections:**
+```kusto
+Event
+| where EventID == 4625
+| sort by TimeGenerated desc
+```
 
-- Failed authentication / password spraying
-- Kerberos attacks
-- Account creation & privileged group modification
-- Suspicious PowerShell execution
-- Lateral movement
-- SMB activity
-- Sysmon process execution
-- Suspicious network connections
+**Splunk Enterprise (SPL):**
 
-KQL powers the hunting queries, analytics rules, dashboards, and incident investigations built on top of this data.
+```spl
+index=windows EventCode=4625
+| sort - _time
+```
 
-### Endpoint telemetry — Sysmon
-
-Sysmon is being layered onto Windows hosts for higher-fidelity endpoint visibility: process creation, network connections, file creation, registry modification, process access, and DNS queries — correlated against standard Windows Security events during investigations.
+**Outcome:** Two different vendor interfaces, one source of truth (the attack). This demonstrates the core skill: **understanding telemetry and attacker behavior transcends platform**.
 
 ---
 
-## // MULTI-SIEM EXPANSION
+## Why This Matters
 
-Designed to run more than one SIEM against the same telemetry, on purpose — the goal is translating detection logic across platforms rather than being locked into one:
+This lab is **not** about collecting two SIEM platforms for their own sake.
 
-| Platform | Query Language |
-|---|:---:|
-| Microsoft Sentinel | KQL |
-| Splunk Enterprise | SPL |
+The objective is to understand the **detection workflow itself**:
 
----
+```
+Attack Activity
+      ↓
+Endpoint Telemetry (Windows Event Logs)
+      ↓
+Collection (AMA + UF)
+      ↓
+Ingestion (Sentinel + Splunk)
+      ↓
+Queryable Data (KQL + SPL)
+      ↓
+Detection (Alerts & Rules)
+      ↓
+Investigation (Correlation & Timeline)
+      ↓
+Response (Containment & Remediation)
+```
 
-## // DIGITAL FORENSICS & INCIDENT RESPONSE
-
-Expanding into DFIR via a dedicated **CSI Linux** workstation. Planned investigation areas:
-
-- Windows endpoint forensics
-- USB device forensics
-- Email and phishing analysis
-- PCAP / network forensics
-- File metadata analysis & timeline reconstruction
-- Indicator-of-compromise extraction
-- Incident reporting
-
-### USB forensics
-
-Controlled USB activity generated on Windows endpoints, investigated via:
-
-`Registry hives` · `SetupAPI logs` · `LNK files` · `Jump Lists` · `Prefetch` · `ShellBags` · `$MFT` · `USN Journal`
-
-Goal: identify which device connected, when, by which user, and what files were accessed or transferred.
-
-### Email & phishing analysis
-
-Controlled `.eml` investigations covering headers, Received chains, Return-Path, Reply-To, SPF/DKIM/DMARC, MIME structure, URLs, attachments, file hashes, and IOC extraction — each concluding in a formal incident report.
+Working with the same event across multiple SIEM platforms reinforces that **the core skill is understanding telemetry and attacker behavior**, not memorizing one vendor's interface.
 
 ---
 
-## // LINUX SECURITY
+## Skills Demonstrated
 
-Ubuntu systems planned for: SSH monitoring, web-server logging, Linux privilege escalation, Docker security, `auditd`, and **CrowdSec** — used to demonstrate detection and automated remediation of hostile activity against Linux services.
-
----
-
-## // OFFENSIVE TOOLKIT
-
-`Nmap` · `NetExec` · `BloodHound` · `Impacket` · `Certipy` · `Burp Suite` · `Wireshark` · `ffuf` · `Gobuster` · `Hashcat` · `John the Ripper`
-
-Hack The Box serves as the external training ground — techniques learned there get reproduced inside this lab so I can study both the offensive technique *and* the telemetry it generates.
+- **Infrastructure:** VMware network segmentation, Active Directory, Windows Server 2022
+- **Offence:** Kali Linux, NetExec, attack instrumentation
+- **Cloud:** Azure Arc, Azure Monitor Agent (AMA), Data Collection Rules
+- **Detection (Microsoft):** Microsoft Sentinel, Log Analytics, KQL
+- **Detection (Splunk):** Splunk Enterprise, Universal Forwarder, SPL
+- **Monitoring:** Windows Event Logs, Sysmon, PowerShell Script Block Logging
+- **Analysis:** Authentication monitoring, detection engineering, attack-to-detection correlation
 
 ---
 
-## // METHODOLOGY
+## Next Steps (Roadmap)
 
-Every exercise documents:
+### Short Term
+- [ ] Enable Sysmon telemetry on DC01 and WIN-01
+- [ ] Forward WIN-01 to both Sentinel and Splunk
+- [ ] PowerShell Script Block Logging across all systems
+- [ ] Create baseline authentication queries (KQL + SPL)
+- [ ] Document password-spray detection correlation
 
-1. Objective
-2. Environment
-3. Reconnaissance
-4. Commands and methodology
-5. Evidence
-6. Telemetry
-7. Detection logic
-8. Investigation
-9. MITRE ATT&CK mapping
-10. Impact
-11. Remediation
-12. Lessons learned
+### Medium Term
+- [ ] Kerberoasting detection (AS-REP, RC4-HMAC)
+- [ ] BloodHound-based Active Directory attack paths
+- [ ] Splunk dashboards (login timeline, failed auth heatmap)
+- [ ] Sentinel workbooks (threat hunting, incident response)
+- [ ] CrowdSec monitoring on KALI01 and SPLUNK-01
 
----
-
-## // SKILLS DEMONSTRATED
-
-**Infrastructure:** Active Directory · Windows Server · DNS · Kerberos · LDAP · SMB · VMware networking · network segmentation
-
-**Detection & SOC:** Microsoft Sentinel · Azure Arc · Azure Monitor Agent · Data Collection Rules · KQL · Sysmon · Windows Event Logs · Splunk · SPL
-
-**Offensive:** Kali Linux · NetExec · BloodHound
-
-**Blue team / Linux:** Linux security monitoring · CrowdSec
-
-**DFIR:** Network forensics · USB forensics · phishing analysis · incident response
-
-**Other:** Detection engineering · MITRE ATT&CK · technical documentation
+### Long Term
+- [ ] Complete DFIR workflows (attack → detection → investigation → response)
+- [ ] Phishing simulation and detection
+- [ ] USB forensics lab
+- [ ] Network packet analysis (Wireshark + zeek)
+- [ ] Endpoint Detection & Response (EDR) comparison
+- [ ] Tuning rules to reduce false positives across both platforms
 
 ---
 
-## // PROJECT GOAL
+## Repository Structure
 
-This lab isn't about exploiting vulnerable systems for their own sake.
+```
+SOC-Lab/
+├── detection-engineering/
+│   └── dual-siem/
+│       ├── README.md (this file)
+│       ├── queries/
+│       │   ├── sentinel/
+│       │   │   ├── authentication-failures.kql
+│       │   │   ├── failed-logon-timeline.kql
+│       │   │   └── ...
+│       │   └── splunk/
+│       │       ├── authentication-failures.spl
+│       │       ├── failed-logon-timeline.spl
+│       │       └── ...
+│       ├── configs/
+│       │   ├── dc01-uf-inputs.conf
+│       │   ├── dc01-uf-outputs.conf
+│       │   └── dcr-windows-security.json
+│       ├── screenshots/
+│       │   ├── sentinel-4625-events.png
+│       │   ├── splunk-windows-stats.png
+│       │   └── attack-to-detection-flow.png
+│       └── lab-setup.md (VMware/Azure configs)
+```
 
-It's about understanding the **complete security lifecycle**: how an attacker discovers and abuses a weakness, what evidence that activity leaves behind, how a SOC analyst detects and investigates it, and how the weakness ultimately gets remediated.
+---
+
+## Key Resources
+
+**Microsoft Sentinel & Log Analytics**
+- [Azure Arc for servers](https://learn.microsoft.com/en-us/azure/azure-arc/servers/overview)
+- [Azure Monitor Agent](https://learn.microsoft.com/en-us/azure/azure-monitor/agents/agents-overview)
+- [Data Collection Rules](https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/data-collection-rule-overview)
+- [KQL Quick Reference](https://learn.microsoft.com/en-us/azure/data-explorer/kusto/query/tutorial)
+
+**Splunk Enterprise**
+- [Universal Forwarder Admin Manual](https://docs.splunk.com/Documentation/Forwarder)
+- [SPL Basics](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/SearchCommandsOverview)
+
+**Detection Engineering**
+- [MITRE ATT&CK](https://attack.mitre.org/)
+- [Splunk Security Essentials](https://splunkbase.splunk.com/app/3435)
+- [Azure Sentinel GitHub](https://github.com/Azure/Azure-Sentinel)
+
+---
 
 <div align="center">
 
-`BUILD // ATTACK // DETECT // DOCUMENT // REPEAT`
+**Last Updated:** August 2026  
+**Maintainer:** [Dylans7j](https://github.com/Dylans7j)  
+**Status:** Active Lab Environment
+
+*See [SOC-Lab](https://github.com/Dylans7j/SOC-Lab) for full project scope.*
 
 </div>
