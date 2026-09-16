@@ -1,0 +1,10 @@
+# Purpose: investigate repeated Windows failed-logon events.
+# Status: documented query; validate field normalization against the active sourcetype.
+# Primary event: Security Event ID 4625.
+
+index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| eval source_ip=coalesce(IpAddress, src_ip, Source_Network_Address)
+| eval target_user=coalesce(TargetUserName, Account_Name, user)
+| stats count AS attempts min(_time) AS first_seen max(_time) AS last_seen values(host) AS hosts values(LogonType) AS logon_types values(FailureReason) AS failure_reasons BY source_ip target_user
+| convert ctime(first_seen) ctime(last_seen)
+| sort - attempts
