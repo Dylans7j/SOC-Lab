@@ -9,7 +9,7 @@ Public documentation intentionally uses `192.169.70.x` as an **illustrative plac
 | Component | Role | Status |
 | --- | --- | --- |
 | Kali | Controlled offensive-testing workstation | Lab workstation |
-| DC-01 | Domain controller, DNS and authentication telemetry | LDAP reachability verified; queried AD DNS SRV record unresolved; current Splunk forwarding needs verification |
+| DC-01 | Domain controller, DNS and authentication telemetry | Domain DNS/SRV resolution verified; Windows Security Event ID 4625 ingested by Splunk during DE-001 |
 | WIN-01-W11 / hostname WIN11 | Windows 11 endpoint | **Four log channels indexed in Splunk** |
 | SPLUNK-01 | Ubuntu / Splunk Enterprise 10.4.2 | **Receiving on TCP 9997** |
 | Microsoft Sentinel | Azure cloud SIEM | Prior research documented; **WIN11 integration deferred** |
@@ -94,13 +94,10 @@ Previous lab documentation and KQL investigations are preserved as historical pr
 
 A future WIN11 onboarding project will verify the agent, Data Collection Rules, event destinations and applicable Log Analytics tables, then confirm identical controlled events in both SIEMs. **Do not label this new dual-SIEM correlation as completed yet.**
 
-## Next controlled investigation
+## Investigations
 
-1. Verify the DNS zone/domain name on DC-01 and investigate the missing queried AD SRV record.
-2. Check DC-01 Windows Security event collection in Splunk.
-3. Generate a small number of failed authentications using an authorized disposable lab account, accounting for lockout thresholds.
-4. Investigate the actual events: endpoint 4625 and DC-side 4771/4776 as applicable.
-5. Validate SPL logic, build a Sigma counterpart and publish sanitized evidence, scope, timestamps, limitations and remediation.
+- [DE-001 — Repeated Failed Active Directory Logons](../../case-studies/DE-001-Repeated-Failed-AD-Logons/): validated on DC01 Security logs in Splunk.
+- DE-002 password spraying: planned; not yet validated.
 
 ## Additional resources
 
