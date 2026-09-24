@@ -1,0 +1,15 @@
+index=windows host=DC01 source="WinEventLog:Security" earliest=-10m latest=now
+| rex field=_raw "<EventID[^>]*>(?<event_id>\d+)</EventID>"
+| search event_id="4625"
+| rex field=_raw "<Data Name='TargetUserName'>(?<target_user>[^<]+)</Data>"
+| rex field=_raw "<Data Name='IpAddress'>(?<source_ip>[^<]+)</Data>"
+| rex field=_raw "<Data Name='LogonType'>(?<logon_type>[^<]+)</Data>"
+| rex field=_raw "<Data Name='Status'>(?<status>[^<]+)</Data>"
+| rex field=_raw "<Data Name='SubStatus'>(?<substatus>[^<]+)</Data>"
+| where logon_type="3"
+    AND lower(status)="0xc000006d"
+    AND lower(substatus)="0xc000006a"
+| bin _time span=5m
+| stats count AS failures by _time, host, target_user, source_ip
+| where failures>=3
+| sort - failures
