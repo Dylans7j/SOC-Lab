@@ -1,91 +1,108 @@
 # INC-002 — Active Directory Authentication Investigation
 
-## Executive Summary
-
-This investigation validates detection of repeated failed Active Directory network logons in an isolated SOC lab. A disposable domain account was targeted from Kali using NetExec over SMB. DC01 recorded Windows Security Event ID `4625`, and Splunk successfully identified repeated incorrect-password failures within a five-minute window.
-
-The final detection focuses on network logon failures where:
-
-- `EventID = 4625`
-- `LogonType = 3`
-- `Status = 0xC000006D`
-- `SubStatus = 0xC000006A`
-- Threshold: three or more failures in five minutes by source and target user
-
-> Public documentation note: screenshots and examples use `192.169.70.x` as a documentation placeholder. It is not the actual lab addressing scheme and should not be used as a working configuration.
+> **Report type:** Detection Engineering / Incident Response Case Study  
+> **Environment:** Isolated SOC home lab  
+> **Primary data source:** Windows Security logs from `DC01` ingested into Splunk  
+> **Status:** Detection validated  
+> **Sensitivity note:** Public screenshots and examples use `192.169.70.x` as a documentation placeholder. It is not the operational lab addressing scheme.
 
 ---
 
-## Scope and Authorization
+## 1. Executive Summary
 
-This activity was performed in a controlled, isolated home lab for detection engineering practice. The test used a disposable Active Directory account, `soc.detect01`, and intentionally generated a limited number of failed authentication attempts.
+This report documents a controlled authentication-failure investigation against an Active Directory domain controller. Kali generated SMB authentication failures against a disposable domain account, `soc.detect01`, using NetExec. `DC01` recorded Windows Security Event ID `4625`, and Splunk identified repeated incorrect-password network logons from the same source within a five-minute window.
+
+The validated detection identifies probable brute-force-style authentication behavior where Windows logs show:
+
+| Field | Detection Value |
+|---|---|
+| Event ID | `4625` |
+| Logon type | `3` — Network logon |
+| Status | `0xC000006D` — Logon failure |
+| SubStatus | `0xC000006A` — Incorrect password |
+| Threshold | `>= 3` failures in `5m` by `source_ip` and `target_user` |
+
+**Outcome:** The lab successfully demonstrated an end-to-end detection workflow: attack simulation, event collection, field extraction, SPL detection logic, and Sigma rule creation.
 
 ---
 
-## Lab Components
+## 2. Scope and Authorization
 
-| Role | Host | Purpose |
-|---|---|---|
-| Domain Controller | `DC01` | Active Directory, Windows Security event source |
-| Attacker VM | `KALI-01` | NetExec SMB authentication testing |
-| SIEM | `SPLUNK-01` | Event collection, investigation, and detection |
-| Test Account | `soc.detect01` | Disposable account for controlled authentication testing |
+This activity was conducted in an isolated lab for authorized detection engineering practice. The test used a disposable Active Directory account and intentionally limited authentication attempts. No third-party systems were targeted.
+
+| Component | Description |
+|---|---|
+| Domain controller | `DC01` |
+| Attacker system | `KALI-01` |
+| SIEM | `SPLUNK-01` |
+| Test account | `soc.detect01` |
+| Technique exercised | Repeated failed SMB authentication |
 
 ---
 
-## Attack Simulation
+## 3. Timeline of Activity
 
-Kali verified reachability to the domain controller and then used NetExec to attempt SMB authentication with an intentionally incorrect password.
+| Time | Event |
+|---|---|
+| 06:07 | Kali verified connectivity to the domain controller. |
+| 06:08 | NetExec SMB authentication attempts returned `STATUS_LOGON_FAILURE`. |
+| 06:08 | `DC01` generated Windows Security Event ID `4625`. |
+| 06:13 | Splunk field extraction confirmed failed-logon fields. |
+| 06:15 | Refined SPL detection identified three incorrect-password failures in a five-minute window. |
+
+---
+
+## 4. Attack Simulation Evidence
+
+Kali verified reachability to `DC01` and used NetExec to attempt SMB authentication against `soc.detect01` with an intentionally incorrect password.
 
 ![Kali NetExec failed SMB authentication](screenshots/01-kali-netexec-logon-failure.png)
 
-The failed authentication attempts produced `STATUS_LOGON_FAILURE`, confirming that the activity reached the domain controller and was rejected.
+**Observed result:** NetExec returned `STATUS_LOGON_FAILURE`, confirming the authentication attempts reached the domain controller and were rejected.
 
 ---
 
-## Event Evidence
+## 5. Host and Log Evidence
 
-Splunk captured Windows Security Event ID `4625` from DC01. The relevant fields included the target user, source address, logon type, status, and substatus.
+Splunk captured Windows Security Event ID `4625` from `DC01`. The event showed a failed network logon using NTLM.
 
 ![Splunk Event ID 4625 detail](screenshots/02-splunk-event-4625-detail.png)
 
 ![Splunk raw XML Event ID 4625 evidence](screenshots/03-splunk-4625-raw-event.png)
 
-### Key Windows Event Fields
+### Key Event Fields
 
-| Field | Observed Value | Meaning |
-|---|---:|---|
-| Event ID | `4625` | Failed logon |
-| TargetUserName | `soc.detect01` | Targeted test account |
-| LogonType | `3` | Network logon |
-| LogonProcessName | `NtLmSsp` | NTLM logon process |
-| AuthenticationPackageName | `NTLM` | Authentication package |
-| Status | `0xC000006D` | Logon failure |
-| SubStatus | `0xC000006A` | Incorrect password |
+| Field | Value | Interpretation |
+|---|---|---|
+| `EventID` | `4625` | Failed logon |
+| `TargetUserName` | `soc.detect01` | Targeted disposable account |
+| `LogonType` | `3` | Network logon |
+| `LogonProcessName` | `NtLmSsp` | NTLM logon process |
+| `AuthenticationPackageName` | `NTLM` | Authentication package |
+| `Status` | `0xC000006D` | Logon failure |
+| `SubStatus` | `0xC000006A` | Incorrect password |
 
-The investigation also captured earlier failures where `SubStatus = 0xC0000072`, indicating the test account was disabled before it was corrected. Those events were excluded from the final detection logic.
+Earlier account-setup failures produced `SubStatus = 0xC0000072`, meaning the account was disabled. Those events were treated as setup noise and excluded from the final detection.
 
 ---
 
-## Field Extraction
+## 6. Analysis
 
-Because the Windows events were indexed as XML-formatted events, the SPL used `rex` commands to extract the fields directly from `_raw`.
+Because the Windows events were ingested as XML, Splunk did not rely on default normalized fields. The investigation extracted the required values from `_raw` using `rex`.
 
 ![Splunk field extraction results](screenshots/04-splunk-field-extraction-results.png)
 
----
-
-## Detection Development
-
-An initial aggregation identified repeated failures, but it also returned unrelated historical Administrator activity when a broad time range was used.
+The first aggregation confirmed repeated failed logons, but the broad search window also returned unrelated historical Administrator activity. The final query narrowed the logic to incorrect-password failures only.
 
 ![Initial aggregation results](screenshots/05-splunk-aggregation-initial.png)
 
-The final query narrowed the detection to incorrect-password network logons and required at least three failures in a five-minute window.
-
 ![Refined repeated failed logon detection](screenshots/06-splunk-refined-detection.png)
 
-### Validated SPL
+---
+
+## 7. Validated Detection Logic
+
+### SPL Detection
 
 ```spl
 index=windows host=DC01 source="WinEventLog:Security" earliest=-10m latest=now
@@ -105,11 +122,15 @@ index=windows host=DC01 source="WinEventLog:Security" earliest=-10m latest=now
 | sort - failures
 ```
 
----
+### Sigma Rule
 
-## Sigma Rule
+The companion Sigma rule is stored here:
 
-The Sigma rule in `detection/win_failed_ad_network_logon.yml` identifies the underlying Windows Security event pattern. The Splunk aggregation implements the repeated-failure threshold.
+```text
+investigations/INC-002-Active-Directory-Authentication-Investigation/detection/win_failed_ad_network_logon.yml
+```
+
+The Sigma rule detects the base Windows event pattern. The SPL query implements the correlation threshold.
 
 ```yaml
 title: Failed AD Network Logon - Incorrect Password
@@ -132,36 +153,83 @@ tags:
 
 ---
 
-## False Positives
+## 8. Assessment
+
+### Finding
+
+Repeated incorrect-password network logons against an Active Directory account were successfully detected from Windows Security telemetry.
+
+### Impact
+
+This activity can indicate password guessing, brute-force behavior, stale credentials, or automated access attempts against SMB and other network logon surfaces.
+
+### Confidence
+
+**High** for the lab scenario. The detection was validated against known controlled activity, and the Splunk result matched the expected source, target account, failure code, and time window.
+
+### Limitations
+
+- The detection currently depends on XML field extraction from `_raw`.
+- A threshold of three failures in five minutes is suitable for the lab but may require tuning in production.
+- The query only targets incorrect-password failures and excludes disabled-account failures.
+- Additional visibility from Event IDs `4771` and `4776` would improve authentication-protocol coverage.
+
+---
+
+## 9. False Positives
 
 Expected benign causes include:
 
-- Users mistyping passwords
+- User password mistypes
 - Stale saved credentials
-- Expired service credentials
+- Expired service-account passwords
 - Misconfigured scheduled tasks
-- Devices repeatedly attempting access with outdated credentials
+- Devices repeatedly attempting access with old credentials
+
+Recommended tuning fields:
+
+| Field | Tuning Use |
+|---|---|
+| `source_ip` | Suppress known scanners or lab systems |
+| `target_user` | Separate service accounts from human users |
+| `host` | Restrict to domain controllers |
+| `failures` | Adjust threshold by environment |
+| `_time` | Tune detection window |
 
 ---
 
-## Improvements
+## 10. Response and Remediation Recommendations
 
-Recommended next improvements:
+For a real environment, the recommended response workflow would be:
 
-1. Add allowlisting for known administrative testing sources.
-2. Add thresholds by unique target accounts to catch password spraying.
-3. Correlate with Event ID `4771` and `4776` where applicable.
-4. Convert this Splunk detection to a Sentinel KQL equivalent after Sentinel onboarding.
-5. Add alert throttling by `source_ip` and `target_user`.
+1. Identify the source host and owner.
+2. Determine whether the targeted account is human, service, or administrative.
+3. Review successful logons for the same account before and after the failures.
+4. Check for additional failures across multiple accounts from the same source.
+5. Reset credentials if compromise is suspected.
+6. Isolate or investigate the source endpoint if activity is unauthorized.
+7. Tune alert suppression for known benign sources.
 
 ---
 
-## Outcome
+## 11. Lessons Learned
 
-This investigation confirmed the end-to-end detection pipeline:
+- Windows Event ID `4625` provides strong authentication-failure evidence when parsed correctly.
+- `Status` and `SubStatus` materially change the meaning of a failed logon.
+- Broad time windows can create noisy results and should be narrowed during validation.
+- Detection logic should separate setup noise from the behavior being tested.
+- Sigma is useful for portable event logic, while SPL is needed for environment-specific correlation.
 
-1. Kali generated controlled SMB authentication failures.
-2. DC01 recorded Windows Security Event ID `4625`.
-3. Splunk ingested the events from the `windows` index.
-4. SPL extracted the required fields from XML.
-5. A refined query detected three incorrect-password network logon failures in a five-minute window.
+---
+
+## 12. Final Result
+
+This investigation produced a working detection and report artifact suitable for portfolio review:
+
+- Confirmed attack simulation from Kali
+- Confirmed Windows Security event generation on `DC01`
+- Confirmed Splunk ingestion into the `windows` index
+- Extracted event fields from XML logs
+- Validated repeated-failure SPL detection
+- Created Sigma rule for the base event pattern
+- Documented screenshots and analysis in one incident-response-style report
