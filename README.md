@@ -4,6 +4,11 @@ Evidence-driven VMware cybersecurity lab for Windows event collection, Active Di
 
 > Build → generate controlled activity → collect → detect → investigate → document.
 
+## Detection Engineering Investigations
+
+- [DE-001 — Detecting Repeated Failed Active Directory Logons](./investigations/INC-002-Active-Directory-Authentication-Investigation/) — validated Splunk/Sigma case study using controlled SMB authentication failures against a disposable AD account.
+- DE-002 — Detecting Active Directory Password Spraying — planned next investigation.
+
 ## Verified September 2026 milestone: WIN11 → Splunk
 
 The Windows 11 endpoint (`WIN-01-W11` VM; OS hostname `WIN11`) has a running Splunk Universal Forwarder, connected to SPLUNK-01's **TCP 9997** receiving port. Windows Security, System, PowerShell Operational and Sysmon Operational events are indexed in `main`.
@@ -35,17 +40,19 @@ The Sysmon channel was locally enabled and generated Event ID 1. Initial Univers
 
 Splunk Web uses a separate web port; **TCP 9997 is the forwarder receiver**, not the browser interface. The current WIN11 endpoint has no Azure Arc or Azure Monitor Agent installed.
 
-## Next project: controlled AD authentication investigation
+## Current project track
 
-- [ ] Confirm actual DC-01 DNS zone and SRV registration.
-- [ ] Confirm DC-01 Windows Security events reach Splunk.
-- [ ] Produce a limited authentication-failure sample using a disposable non-administrative lab account.
-- [ ] Correlate applicable Windows Security Event IDs 4625, 4771 and/or 4776 based on the observed protocol and host.
-- [ ] Write and test an SPL rule, document extraction quirks and false-positive considerations.
-- [ ] Map confirmed behavior to MITRE ATT&CK and publish a Sigma rule plus sanitized report.
+- [x] Confirm DC-01 Windows Security events reach Splunk.
+- [x] Produce a limited authentication-failure sample using a disposable non-administrative lab account.
+- [x] Correlate Windows Security Event ID 4625 based on the observed SMB/NTLM activity.
+- [x] Write and test an SPL rule, document extraction quirks and false-positive considerations.
+- [x] Map confirmed behavior to MITRE ATT&CK and publish a Sigma rule plus sanitized report.
+- [ ] Build DE-002 password spraying detection.
+- [ ] Reproduce selected detections in Microsoft Sentinel after current onboarding is verified.
 
 ## Existing project documentation
 
+- [DE-001 — Detecting Repeated Failed Active Directory Logons](./investigations/INC-002-Active-Directory-Authentication-Investigation/)
 - [Dual-SIEM architecture and historical work](./Detection-engineering/Dual-Siem/README.md)
 - [Lab setup notes](./Detection-engineering/Dual-Siem/lab-setup.md)
 - [Detection queries](./Detection-engineering/Dual-Siem/detection-queries.md)
