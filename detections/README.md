@@ -4,11 +4,13 @@ Browse reusable detections by query language. **Validation status matters:** a s
 
 | Language | Query / rule | Status |
 |---|---|---|
+| [Splunk SPL](./spl/DE-002-ad-password-spraying.spl) | DE-002: five distinct accounts from one source in ten minutes | **Validated against five captured DC01 failures** |
+| [Sigma](./sigma/DE-002-ad-password-spraying.yml) | DE-002: individual incorrect-password network logon | **Sigma CLI check passed**; 5-account correlation only in SPL |
 | [Splunk SPL](./spl/DE-001-repeated-failed-ad-logons.spl) | DE-001: incorrect-password network logons, three in five minutes | **Validated against captured DC01 events** |
 | [Sigma](./sigma/DE-001-repeated-failed-ad-logons.yml) | DE-001: individual 4625 incorrect-password network logon | **Sigma CLI check passed**; threshold aggregation is only in SPL |
 | [Splunk SPL](./spl/failed-logons.spl) | Generic failed-logon investigation | Historical example; field normalization needs local verification |
 | [Microsoft Sentinel KQL](./kql/failed-logons.kql) | Generic failed-logon investigation | Draft; current workspace schema and ingestion not verified |
 
-**Note:** The DE-001 Sigma rule describes the *event selection*, not a three-failures-in-five-minutes correlation. The tested SPL performs that aggregation.
+**Note:** DE-001 and DE-002 Sigma rules describe *event selection* only. Their validated SPL searches apply the separate 3-in-5-minutes and 5-users-in-10-minutes correlations.
 
-[Read the DE-001 investigation and screenshots](../case-studies/DE-001-Repeated-Failed-AD-Logons/).
+[DE-001 report](../case-studies/DE-001-Repeated-Failed-AD-Logons/) · [DE-002 report](../case-studies/DE-002-AD-Password-Spray-Detection/).
