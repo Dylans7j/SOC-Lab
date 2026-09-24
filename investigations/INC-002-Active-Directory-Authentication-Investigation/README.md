@@ -1,6 +1,7 @@
-# INC-002 — Active Directory Authentication Investigation
+# DE-001 — Detecting Repeated Failed Active Directory Logons
 
 > **Report type:** Detection Engineering / Incident Response Case Study  
+> **Former internal ID:** INC-002 — Active Directory Authentication Investigation  
 > **Environment:** Isolated SOC home lab  
 > **Primary data source:** Windows Security logs from `DC01` ingested into Splunk  
 > **Status:** Detection validated  
