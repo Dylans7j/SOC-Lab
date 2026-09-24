@@ -36,8 +36,8 @@ No production or third-party systems were tested.
 
 ## Detection logic
 
-- [KQL hunt](../detections/kql/failed-logons.kql)
-- [SPL hunt](../detections/spl/failed-logons.spl)
+- [KQL hunt](../../detections/kql/failed-logons.kql)
+- [SPL hunt](../../detections/spl/failed-logons.spl)
 
 The current queries summarize attempts by source address and targeted user. Thresholds are intentionally omitted until baseline activity is measured.
 

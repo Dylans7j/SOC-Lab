@@ -411,6 +411,6 @@ index=windows EventCode=5145
 
 **Tip:** These queries are starting points. Tune thresholds and conditions based on your lab's baseline behavior.
 
-See the main [README.md](./README.md) for architecture and [DUAL-SIEM-SETUP.md](./DUAL-SIEM-SETUP.md) for configuration steps.
+See the main [README.md](./README.md) for architecture and [DUAL-SIEM-SETUP.md](./lab-setup.md) for configuration steps.
 
 </div>

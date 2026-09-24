@@ -1,67 +1,51 @@
-# SOC–Active Directory Lab
+# SOC Lab — Active Directory Detection Engineering
 
-Evidence-driven VMware cybersecurity lab for Windows event collection, Active Directory investigations and detection engineering. Technical reports and versioned detections are maintained here; [portfolio project summaries](https://dylans7j.github.io/Portfolio/projects.html) provide a recruiter-facing overview.
+**An evidence-driven security operations lab:** Active Directory • Windows event telemetry • Splunk SPL • Microsoft Sentinel KQL • Sigma.
 
-> Build → generate controlled activity → collect → detect → investigate → document.
+Controlled lab activity → Windows telemetry → analyst investigation → validated detection → published case study.
 
-## Detection Engineering Investigations
+[**Case Studies**](./case-studies/README.md) · [**Detection Library**](./detections/README.md) · [**Lab Architecture**](./lab/README.md) · [**Attack Simulations**](./attack-simulations/README.md) · [**Reference Docs**](./docs/README.md)
 
-- [DE-001 — Detecting Repeated Failed Active Directory Logons](./investigations/INC-002-Active-Directory-Authentication-Investigation/) — validated Splunk/Sigma case study using controlled SMB authentication failures against a disposable AD account.
-- DE-002 — Detecting Active Directory Password Spraying — planned next investigation.
+---
 
-## Verified September 2026 milestone: WIN11 → Splunk
+## Featured case study
 
-The Windows 11 endpoint (`WIN-01-W11` VM; OS hostname `WIN11`) has a running Splunk Universal Forwarder, connected to SPLUNK-01's **TCP 9997** receiving port. Windows Security, System, PowerShell Operational and Sysmon Operational events are indexed in `main`.
+### [DE-001 — Detecting Repeated Failed Active Directory Logons](./case-studies/DE-001-Repeated-Failed-AD-Logons/)
 
-One captured 24-hour Splunk search returned **11,892 events**, including **9,703 Sysmon events**. Those counts describe that search window, not continuous ingestion or performance.
+**Validated in Splunk · Windows Security 4625 · NTLM network logons**
 
-| Telemetry channel | Observed count |
-| --- | ---: |
-| Sysmon Operational | 9,703 |
-| Windows Security | 1,683 |
-| PowerShell Operational | 406 |
-| Windows System | 100 |
+A controlled Kali/NetExec exercise targeted a disposable domain account. DC01 produced failed-logon events, and a refined Splunk search identified **three incorrect-password failures from one source against one account in a five-minute window**. The report includes the event analysis, detection logic, limitations and six evidence screenshots.
 
-The Sysmon channel was locally enabled and generated Event ID 1. Initial Universal Forwarder ingestion failed with `errorCode=5` (access denied). Adding the dedicated service identity to **Event Log Readers** and restarting the service corrected the access problem; real Sysmon source events subsequently appeared in Splunk.
+[Read the full analyst report →](./case-studies/DE-001-Repeated-Failed-AD-Logons/)
 
-**Evidence status:** validated with local outputs and Splunk screenshots. Sanitized screenshots have not yet been committed to this repository.
+**Up next:** DE-002 — Detecting Active Directory Password Spraying (*planned; not yet validated*).
 
-## Public lab network notation
+## Browse the repository
 
-**All addresses in this repository use the documentation placeholder `192.169.70.x`; no actual lab IP addresses, NAT leases or gateways are published.** The placeholder is not a recommended routable or private network configuration. Substitute your own authorized addresses locally.
+| Section | Contents |
+|---|---|
+| [Case Studies](./case-studies/README.md) | Analyst reports, evidence, case timelines and historical investigations |
+| [Detection Library](./detections/README.md) | Splunk SPL, Microsoft Sentinel KQL and portable Sigma rules, with validation status |
+| [Lab Architecture](./lab/README.md) | VMware topology, Splunk onboarding and historical dual-SIEM documentation |
+| [Attack Simulations](./attack-simulations/README.md) | Controlled lab exercises, including LLMNR/NBT-NS research |
+| [Reference Docs](./docs/README.md) | Evidence standards, Windows onboarding and a Splunk detection cheat sheet |
 
-| Asset | Purpose | Current state |
-| --- | --- | --- |
-| DC-01 | Active Directory, DNS and authentication telemetry | LDAP reachable; queried DNS SRV record unresolved; current DC-01 Splunk ingestion still needs confirmation |
-| WIN11 | Windows 11 endpoint with Sysmon and Universal Forwarder | **Verified**: four log channels indexed in Splunk |
-| SPLUNK-01 | Ubuntu / Splunk Enterprise | **Verified**: receiver on TCP 9997; WIN11 events indexed |
-| Kali | Isolated security-testing workstation | Authorized enumeration and planned controlled exercises |
-| Microsoft Sentinel | Cloud investigation environment | Previous research documented; **current WIN11 onboarding deferred** |
+## Verified lab milestones
 
-Splunk Web uses a separate web port; **TCP 9997 is the forwarder receiver**, not the browser interface. The current WIN11 endpoint has no Azure Arc or Azure Monitor Agent installed.
+| Component | Evidence-backed status |
+|---|---|
+| **DC01 → Splunk** | Windows Security logs indexed in `windows`; Event ID 4625 observed during DE-001 |
+| **WIN11 → Splunk** | Security, System, PowerShell Operational and Sysmon Operational logs indexed in `main` |
+| **Splunk receiver** | Universal Forwarders target TCP 9997 |
+| **DE-001** | Three incorrect-password network logons identified within five minutes |
+| **Microsoft Sentinel** | Historical notes available; onboarding of current WIN11 endpoint **not verified** |
 
-## Current project track
+One captured WIN11 24-hour search returned **11,892 events** (9,703 Sysmon, 1,683 Security, 406 PowerShell and 100 System). These are historical observations, not live ingest rates.
 
-- [x] Confirm DC-01 Windows Security events reach Splunk.
-- [x] Produce a limited authentication-failure sample using a disposable non-administrative lab account.
-- [x] Correlate Windows Security Event ID 4625 based on the observed SMB/NTLM activity.
-- [x] Write and test an SPL rule, document extraction quirks and false-positive considerations.
-- [x] Map confirmed behavior to MITRE ATT&CK and publish a Sigma rule plus sanitized report.
-- [ ] Build DE-002 password spraying detection.
-- [ ] Reproduce selected detections in Microsoft Sentinel after current onboarding is verified.
+## Public evidence and privacy
 
-## Existing project documentation
+Public *text examples* use `192.169.70.x` as a **documentation-only placeholder**; it is not RFC 1918 private space or a working subnet. Screenshots and previous Git history require separate review before broader redistribution. Never commit credentials, tokens, personal identifiers or real internal network details.
 
-- [DE-001 — Detecting Repeated Failed Active Directory Logons](./investigations/INC-002-Active-Directory-Authentication-Investigation/)
-- [Dual-SIEM architecture and historical work](./Detection-engineering/Dual-Siem/README.md)
-- [Lab setup notes](./Detection-engineering/Dual-Siem/lab-setup.md)
-- [Detection queries](./Detection-engineering/Dual-Siem/detection-queries.md)
-- [Previously documented authentication investigation](./investigations/INC-001-smb-authentication-failures.md)
-- [LLMNR/NBT-NS poisoning study](./attack-scenarios/llmnr-nbtns-poisoning.md)
-- [Evidence standard](./docs/EVIDENCE-STANDARD.md)
+**Project status:** This repository is an educational, isolated lab. Reported detection results apply to the documented test scenarios, not a production deployment.
 
-Historical dual-SIEM documentation is distinct from the current WIN11 deployment. WIN11-to-Sentinel data flow must not be described as verified.
-
-## Publication standard
-
-Each published investigation must describe scope, timestamps, commands, actual event sources, sanitized supporting evidence, detection results, assumptions, limitations and remediation. Never publish credentials, tokens, private keys, raw internal addresses or unsupported detection claims.
+[Portfolio project overview](https://dylans7j.github.io/Portfolio/projects.html)

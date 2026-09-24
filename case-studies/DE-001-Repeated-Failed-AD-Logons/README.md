@@ -5,7 +5,7 @@
 > **Environment:** Isolated SOC home lab  
 > **Primary data source:** Windows Security logs from `DC01` ingested into Splunk  
 > **Status:** Detection validated  
-> **Sensitivity note:** Public screenshots and examples use `192.169.70.x` as a documentation placeholder. It is not the operational lab addressing scheme.
+> **Publication note:** Text examples use `192.169.70.x` as a documentation-only placeholder, not an operational subnet. Review images and Git history separately for any actual lab addresses.
 
 ---
 
@@ -105,6 +105,8 @@ The first aggregation confirmed repeated failed logons, but the broad search win
 
 ### SPL Detection
 
+[Standalone validated SPL query](../../detections/spl/DE-001-repeated-failed-ad-logons.spl)
+
 ```spl
 index=windows host=DC01 source="WinEventLog:Security" earliest=-10m latest=now
 | rex field=_raw "<EventID[^>]*>(?<event_id>\\d+)</EventID>"
@@ -125,10 +127,10 @@ index=windows host=DC01 source="WinEventLog:Security" earliest=-10m latest=now
 
 ### Sigma Rule
 
-The companion Sigma rule is stored here:
+The companion [Sigma rule](../../detections/sigma/DE-001-repeated-failed-ad-logons.yml) is stored here:
 
 ```text
-investigations/INC-002-Active-Directory-Authentication-Investigation/detection/win_failed_ad_network_logon.yml
+detections/sigma/DE-001-repeated-failed-ad-logons.yml
 ```
 
 The Sigma rule detects the base Windows event pattern. The SPL query implements the correlation threshold.
