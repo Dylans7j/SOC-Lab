@@ -11,4 +11,3 @@ Expected files:
 5. `05-splunk-aggregation-initial.png`
 6. `06-splunk-refined-detection.png`
 
-The prepared archive from the ChatGPT workspace contains these screenshots with visible lab IP addresses redacted to the documentation placeholder `192.169.70.x`.
