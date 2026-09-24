@@ -18,7 +18,7 @@ A controlled Kali/NetExec exercise targeted a disposable domain account. DC01 pr
 
 [Read the full analyst report →](./case-studies/DE-001-Repeated-Failed-AD-Logons/)
 
-**Up next:** DE-002 — Detecting Active Directory Password Spraying (*planned; not yet validated*).
+**New:** [DE-002 — Detecting Active Directory Password Spraying](./case-studies/DE-002-AD-Password-Spray-Detection/) — five captured 4625 failures against five distinct lab users; Splunk correlation and Sigma CLI validation confirmed. Screenshot upload pending.
 
 ## Browse the repository
 
@@ -38,6 +38,7 @@ A controlled Kali/NetExec exercise targeted a disposable domain account. DC01 pr
 | **WIN11 → Splunk** | Security, System, PowerShell Operational and Sysmon Operational logs indexed in `main` |
 | **Splunk receiver** | Universal Forwarders target TCP 9997 |
 | **DE-001** | Three incorrect-password network logons identified within five minutes |
+| **DE-002** | Five distinct test accounts, five incorrect-password network logons within ten minutes |
 | **Microsoft Sentinel** | Historical notes available; onboarding of current WIN11 endpoint **not verified** |
 
 One captured WIN11 24-hour search returned **11,892 events** (9,703 Sysmon, 1,683 Security, 406 PowerShell and 100 System). These are historical observations, not live ingest rates.
