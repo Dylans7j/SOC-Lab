@@ -1,379 +1,112 @@
-<div align="center">
-
 # Dual-SIEM Active Directory Monitoring Lab
 
-![Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
-![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%7C%20Splunk-blue?style=flat-square)
-![Environment](https://img.shields.io/badge/Environment-VMware%20%7C%20Azure%20Arc-orange?style=flat-square)
+> **Current status, September 2026:** WIN11 → Splunk event ingestion is verified. The existing Microsoft Sentinel work remains documented separately; the **new WIN11 endpoint has not been onboarded to Sentinel**. Simultaneous ingestion of WIN11 telemetry into both products has not been demonstrated.
 
-Real-time Active Directory security telemetry ingested simultaneously into Microsoft Sentinel and Splunk Enterprise for dual-platform detection and investigation.
+## Architecture and address notation
 
-`KALI ATTACK → DC TELEMETRY → DUAL SIEM → KQL + SPL QUERIES`
+Public documentation intentionally uses `192.169.70.x` as an **illustrative placeholder only**, not the actual lab subnet. It is not RFC 1918 private address space. Substitute authorized local IP addresses when configuring your own lab.
 
-</div>
+| Component | Role | Status |
+| --- | --- | --- |
+| Kali | Controlled offensive-testing workstation | Lab workstation |
+| DC-01 | Domain controller, DNS and authentication telemetry | LDAP reachability verified; queried AD DNS SRV record unresolved; current Splunk forwarding needs verification |
+| WIN-01-W11 / hostname WIN11 | Windows 11 endpoint | **Four log channels indexed in Splunk** |
+| SPLUNK-01 | Ubuntu / Splunk Enterprise 10.4.2 | **Receiving on TCP 9997** |
+| Microsoft Sentinel | Azure cloud SIEM | Prior research documented; **WIN11 integration deferred** |
 
----
+```text
+    VMware isolated lab (public address placeholder: 192.169.70.x)
 
-## Overview
+    DC-01 ── LDAP connectivity confirmed ── WIN11
+                                         │
+                       Security / System / Sysmon / PowerShell
+                                         │
+                             Splunk Universal Forwarder
+                                         │ TCP 9997
+                                         ▼
+                                     SPLUNK-01
+                                         │
+                                       Splunk
 
-This project demonstrates a production-grade dual-SIEM monitoring architecture built around a Windows Active Directory lab. Windows security telemetry from a VMware-hosted domain controller is collected simultaneously by **Microsoft Sentinel** (cloud) and **Splunk Enterprise** (on-prem), allowing the same attack activity to be investigated using both **KQL** (Kusto Query Language) and **SPL** (Splunk Processing Language).
-
-**The goal:** Develop transferable detection and investigation skills rather than relying on a single security platform's interface or paradigm.
-
----
-
-## Architecture
-
-```
-                         KALI01
-                    192.168.X.10
-                          |
-                    Attack Activity
-                    (SMB auth failures,
-                     Kerberos attacks,
-                     etc.)
-                          |
-                          v
-                        DC01
-                    192.168.X.20
-                 Windows Server 2022
-                   Active Directory
-                          |
-              +-----------+-----------+
-              |                       |
-              v                       v
-        Microsoft Sentinel          Splunk
-             (Cloud)             (On-Prem)
-             / AMA               / UF
-             / DCR               / Port 1137
-              |                       |
-              v                       v
-        Log Analytics          SPLUNK-01
-        Workspace            192.168.X.80
-        (Event table)            (Indexer)
-                                   |
-                            (Both ingest
-                             same events)
+    WIN11 → Azure Monitor Agent / Sentinel: deferred
 ```
 
-> **Replace X with your subnet number** — e.g., `192.168.100.10`, `192.168.100.20`, `192.168.100.80` if you chose the 100 subnet.
+The verified receiver is **TCP 9997**. TCP 1137 was the server's configured Splunk Web port during setup, not its ingestion port. Earlier instructions conflating those ports are superseded by this document.
 
----
+## WIN11 ingestion: observed evidence
 
-## Environment
+The Windows 11 VM has two network interfaces (a lab-only adapter and a separate NAT adapter). The forwarder runs as `NT SERVICE\SplunkForwarder` and shows the Splunk server under **Active forwards**.
 
-| System | Purpose | Lab Address | OS/Role |
-|---|---|---|---|
-| **KALI01** | Offensive security workstation | 192.168.X.10 | Kali Linux |
-| **DC01** | Domain Controller | 192.168.X.20 | Windows Server 2022 / AD |
-| **WIN-01** | Domain workstation | 192.168.X.30 | Windows 10 (planned) |
-| **SPLUNK-01** | Splunk Enterprise indexer | 192.168.X.80 | Ubuntu Server |
+| Channel | Captured events in one 24-hour Splunk search |
+| --- | ---: |
+| Sysmon Operational | 9,703 |
+| Security | 1,683 |
+| PowerShell Operational | 406 |
+| System | 100 |
+| **Total** | **11,892** |
 
-**Network:** Isolated lab network uses VMware host-only interface on `192.168.X.0/24` (substitute X with your subnet, e.g., 100). Systems requiring internet connectivity also use a separate VMware NAT interface.
+Sysmon Event ID 1 was present locally. Initial forwarder logs showed `errorCode=5` when subscribing to `Microsoft-Windows-Sysmon/Operational`. The service account was added to the local **Event Log Readers** group and the service restarted; a later search confirmed indexed Sysmon source events. Screenshots were shown during validation; sanitized evidence files still need to be committed.
 
----
-
-## Microsoft Sentinel Pipeline
-
-### Onboarding
-
-DC01 was onboarded to Azure using **Azure Arc**. Once registered, the monitoring pipeline became:
-
-```
-DC01
-  ↓
-Windows Event Logs (Security, System, Application)
-  ↓
-Azure Monitor Agent (AMA)
-  ↓
-Data Collection Rule (DCR)
-  ↓
-Log Analytics Workspace
-  ↓
-Microsoft Sentinel
-```
-
-### Data Collection Rule
-
-**Name:** `DCR-SOC-LAB-WINDOWS`
-
-**Targets:** Windows Security audit events from DC01
-
-**Validation:** Successful ingestion confirmed via the `Event` table in Log Analytics.
-
-### Sentinel Query - Validation
-
-```kusto
-Event
-| where EventID == 4625
-| sort by TimeGenerated desc
-| take 50
-```
-
-**Results:** Events originating from `DC01.dc-01.lab` with source `Microsoft-Windows-Security-Auditing` successfully ingested.
-
----
-
-## Splunk Pipeline
-
-### Splunk Infrastructure
-
-| Component | Specification |
-|---|---|
-| Hostname | SPLUNK-01 |
-| Lab IP | 192.168.X.80 |
-| Web UI | TCP/8000 |
-| Receiver Port | TCP/1137 (non-default, intentional) |
-
-**Note:** Non-standard port 1137/TCP is used within the isolated lab environment and documented throughout for reproducibility. Replace X with your subnet (e.g., 192.168.100.80).
-
-### Splunk Universal Forwarder (DC01)
-
-Installed on DC01 to transmit Windows event logs to SPLUNK-01.
-
-**Output Configuration:**
-
-```ini
-[tcpout]
-defaultGroup = lab_indexers
-
-[tcpout:lab_indexers]
-server = 192.168.X.80:1137  # Replace X with your subnet, e.g., 192.168.100.80
-```
-
-### Windows Event Inputs
-
-**inputs.conf on DC01:**
+### Current WIN11 inputs
 
 ```ini
 [WinEventLog://Security]
 disabled = 0
-index = windows
-renderXml = true
+index = main
+renderXml = 1
 
 [WinEventLog://System]
 disabled = 0
-index = windows
-renderXml = true
-
-[WinEventLog://Application]
-disabled = 0
-index = windows
-renderXml = true
-
-[WinEventLog://Microsoft-Windows-PowerShell/Operational]
-disabled = 0
-index = powershell
-renderXml = true
+index = main
+renderXml = 1
 
 [WinEventLog://Microsoft-Windows-Sysmon/Operational]
 disabled = 0
-index = sysmon
-renderXml = true
+index = main
+renderXml = 1
+
+[WinEventLog://Microsoft-Windows-PowerShell/Operational]
+disabled = 0
+index = main
+renderXml = 1
 ```
 
-### Custom Indexes
-
-Three indexes created on SPLUNK-01:
-
-- `windows` — Windows Security, System, Application events
-- `powershell` — PowerShell Script Block Logging
-- `sysmon` — Sysmon operational telemetry
-
-### Splunk Validation
-
-**1. Forwarder Connectivity** (from DC01, substitute X with your subnet):
-
-```powershell
-Test-NetConnection 192.168.X.80 -Port 1137
-# Example: Test-NetConnection 192.168.100.80 -Port 1137
-```
-
-**Output:**
-
-```
-TcpTestSucceeded : True
-```
-
-**2. Forwarder Status** (from DC01):
-
-```
-Active forwards:
-192.168.X.80:1137
-# Replace X with your subnet, e.g., 192.168.100.80:1137
-```
-
-**3. Data in Splunk:**
+With `renderXml=1`, verify actual source and sourcetype names before depending on automatic field extraction:
 
 ```spl
-index=windows
-| stats count by host, source, sourcetype
+index=main host=WIN11 earliest=-24h
+| stats count latest(_time) as lastEvent by source, sourcetype
+| convert ctime(lastEvent)
+| sort - count
 ```
-
-**Results:** Confirmed telemetry from `DC01` across all three indexes.
-
----
-
-## Attack-to-Detection Validation
-
-### Test Attack
-
-Failed SMB authentication from Kali Linux against DC01 (substitute X with your subnet):
-
-```bash
-nxc smb 192.168.X.20 \
-  -u Administrator \
-  -p 'WrongPassword123!'
-# Example: nxc smb 192.168.100.20 -u Administrator -p 'WrongPassword123!'
-```
-
-**Result:** `STATUS_LOGON_FAILURE`
-
-**Telemetry Generated:** Windows Event ID **4625** (Failed Logon)
-
-### Same Event, Dual Investigation
-
-The same security event is visible in both platforms:
-
-**Microsoft Sentinel (KQL):**
-
-```kusto
-Event
-| where EventID == 4625
-| sort by TimeGenerated desc
-```
-
-**Splunk Enterprise (SPL):**
 
 ```spl
-index=windows EventCode=4625
-| sort - _time
+index=main host=WIN11 earliest=-30m
+source="WinEventLog:Microsoft-Windows-Sysmon/Operational"
+| stats count by EventCode
 ```
 
-**Outcome:** Two different vendor interfaces, one source of truth (the attack). This demonstrates the core skill: **understanding telemetry and attacker behavior transcends platform**.
+If field-based searches return no results, inspect `_raw` for an actual indexed event and normalize field extraction. A text search for `Sysmon` may match PowerShell command history rather than Sysmon-source events.
 
----
+## Microsoft Sentinel research
 
-## Why This Matters
+Previous lab documentation and KQL investigations are preserved as historical project work. However, WIN11 had neither Azure Arc Connected Machine Agent nor Azure Monitor Agent at the last check. Its Sentinel connection is postponed.
 
-This lab is **not** about collecting two SIEM platforms for their own sake.
+A future WIN11 onboarding project will verify the agent, Data Collection Rules, event destinations and applicable Log Analytics tables, then confirm identical controlled events in both SIEMs. **Do not label this new dual-SIEM correlation as completed yet.**
 
-The objective is to understand the **detection workflow itself**:
+## Next controlled investigation
 
-```
-Attack Activity
-      ↓
-Endpoint Telemetry (Windows Event Logs)
-      ↓
-Collection (AMA + UF)
-      ↓
-Ingestion (Sentinel + Splunk)
-      ↓
-Queryable Data (KQL + SPL)
-      ↓
-Detection (Alerts & Rules)
-      ↓
-Investigation (Correlation & Timeline)
-      ↓
-Response (Containment & Remediation)
-```
+1. Verify the DNS zone/domain name on DC-01 and investigate the missing queried AD SRV record.
+2. Check DC-01 Windows Security event collection in Splunk.
+3. Generate a small number of failed authentications using an authorized disposable lab account, accounting for lockout thresholds.
+4. Investigate the actual events: endpoint 4625 and DC-side 4771/4776 as applicable.
+5. Validate SPL logic, build a Sigma counterpart and publish sanitized evidence, scope, timestamps, limitations and remediation.
 
-Working with the same event across multiple SIEM platforms reinforces that **the core skill is understanding telemetry and attacker behavior**, not memorizing one vendor's interface.
+## Additional resources
 
----
+- [SOC-Lab overview](../../README.md)
+- [Detection query documentation](./detection-queries.md)
+- [Prior lab setup notes](./lab-setup.md) — historical examples; verify against this page before applying
+- [Evidence requirements](../../docs/EVIDENCE-STANDARD.md)
 
-## Skills Demonstrated
-
-- **Infrastructure:** VMware network segmentation, Active Directory, Windows Server 2022
-- **Offence:** Kali Linux, NetExec, attack instrumentation
-- **Cloud:** Azure Arc, Azure Monitor Agent (AMA), Data Collection Rules
-- **Detection (Microsoft):** Microsoft Sentinel, Log Analytics, KQL
-- **Detection (Splunk):** Splunk Enterprise, Universal Forwarder, SPL
-- **Monitoring:** Windows Event Logs, Sysmon, PowerShell Script Block Logging
-- **Analysis:** Authentication monitoring, detection engineering, attack-to-detection correlation
-
----
-
-## Next Steps (Roadmap)
-
-### Short Term
-- [ ] Enable Sysmon telemetry on DC01 and WIN-01
-- [ ] Forward WIN-01 to both Sentinel and Splunk
-- [ ] PowerShell Script Block Logging across all systems
-- [ ] Create baseline authentication queries (KQL + SPL)
-- [ ] Document password-spray detection correlation
-
-### Medium Term
-- [ ] Kerberoasting detection (AS-REP, RC4-HMAC)
-- [ ] BloodHound-based Active Directory attack paths
-- [ ] Splunk dashboards (login timeline, failed auth heatmap)
-- [ ] Sentinel workbooks (threat hunting, incident response)
-- [ ] CrowdSec monitoring on KALI01 and SPLUNK-01
-
-### Long Term
-- [ ] Complete DFIR workflows (attack → detection → investigation → response)
-- [ ] Phishing simulation and detection
-- [ ] USB forensics lab
-- [ ] Network packet analysis (Wireshark + zeek)
-- [ ] Endpoint Detection & Response (EDR) comparison
-- [ ] Tuning rules to reduce false positives across both platforms
-
----
-
-## Repository Structure
-
-```
-SOC-Lab/
-├── detection-engineering/
-│   └── dual-siem/
-│       ├── README.md (this file)
-│       ├── queries/
-│       │   ├── sentinel/
-│       │   │   ├── authentication-failures.kql
-│       │   │   ├── failed-logon-timeline.kql
-│       │   │   └── ...
-│       │   └── splunk/
-│       │       ├── authentication-failures.spl
-│       │       ├── failed-logon-timeline.spl
-│       │       └── ...
-│       ├── configs/
-│       │   ├── dc01-uf-inputs.conf
-│       │   ├── dc01-uf-outputs.conf
-│       │   └── dcr-windows-security.json
-│       ├── screenshots/
-│       │   ├── sentinel-4625-events.png
-│       │   ├── splunk-windows-stats.png
-│       │   └── attack-to-detection-flow.png
-│       └── lab-setup.md (VMware/Azure configs)
-```
-
----
-
-## Key Resources
-
-**Microsoft Sentinel & Log Analytics**
-- [Azure Arc for servers](https://learn.microsoft.com/en-us/azure/azure-arc/servers/overview)
-- [Azure Monitor Agent](https://learn.microsoft.com/en-us/azure/azure-monitor/agents/agents-overview)
-- [Data Collection Rules](https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/data-collection-rule-overview)
-- [KQL Quick Reference](https://learn.microsoft.com/en-us/azure/data-explorer/kusto/query/tutorial)
-
-**Splunk Enterprise**
-- [Universal Forwarder Admin Manual](https://docs.splunk.com/Documentation/Forwarder)
-- [SPL Basics](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/SearchCommandsOverview)
-
-**Detection Engineering**
-- [MITRE ATT&CK](https://attack.mitre.org/)
-- [Splunk Security Essentials](https://splunkbase.splunk.com/app/3435)
-- [Azure Sentinel GitHub](https://github.com/Azure/Azure-Sentinel)
-
----
-
-<div align="center">
-
-**Last Updated:** August 2026  
-**Maintainer:** [Dylans7j](https://github.com/Dylans7j)  
-**Status:** Active Lab Environment
-
-*See [SOC-Lab](https://github.com/Dylans7j/SOC-Lab) for full project scope.*
-
-</div>
+**Security hardening backlog:** Splunk's forwarder log warned that its output connection did not verify the receiving certificate and that a default certificate was present. A trusted receiving certificate and tested forwarder verification remain future hardening tasks.
