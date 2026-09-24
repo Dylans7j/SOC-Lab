@@ -1,4 +1,6 @@
-# INC-002 Timeline — Active Directory Authentication Investigation
+# DE-001 Timeline — Detecting Repeated Failed Active Directory Logons
+
+> Former internal ID: INC-002 — Active Directory Authentication Investigation
 
 | Time | Activity | Evidence |
 |---|---|---|
