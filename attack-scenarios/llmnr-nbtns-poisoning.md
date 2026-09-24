@@ -1,12 +1,14 @@
 # Case Study 03: LLMNR/NBT-NS/mDNS Poisoning (Responder)
 
+> Public address notation: `192.169.70.x` is a documentation-only placeholder, not the actual lab address or a private-network configuration. Substitute authorized local addresses when reproducing the lab.
+
 ## Objective
 Demonstrate credential capture via LLMNR/NBT-NS/mDNS poisoning against a domain-joined host, then validate detection coverage across Sentinel and Splunk using Sysmon and Windows Security event telemetry.
 
 ## Environment
-- **Attacker:** KALI-01 (192.168.70.10) — Responder 3.2.2.0
-- **Target:** DC-01 (192.168.70.20) — Windows Server 2022, domain `dc-01.lab`
-- **Network:** VMware Workstation, VMnet7 host-only, 192.168.70.0/24, flat (no segmentation)
+- **Attacker:** KALI-01 (192.169.70.x) — Responder 3.2.2.0
+- **Target:** DC-01 (192.169.70.x) — Windows Server 2022, domain `dc-01.lab`
+- **Network:** VMware Workstation, VMnet7 host-only, 192.169.70.x, flat (no segmentation)
 - **Telemetry:** Sysmon (olafhartong config) on DC-01 → Splunk Universal Forwarder (port 1137) + Azure Monitor Agent → Microsoft Sentinel (DCR-SOC-LAB-WINDOWS)
 - **SIEM:** Splunk Enterprise 10.4.2 (indexes: `sysmon`, `windows`) and Microsoft Sentinel (KQL), dual-ingest from the same host
 
