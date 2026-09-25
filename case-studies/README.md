@@ -5,7 +5,7 @@ Analyst-style reports with the question, test scope, telemetry, event evidence, 
 | Case | Focus | Status |
 |---|---|---|
 | [DE-001 — Detecting Repeated Failed Active Directory Logons](./DE-001-Repeated-Failed-AD-Logons/) | Windows 4625 · SMB/NTLM · repeated incorrect passwords | **Validated in Splunk** |
-| [DE-002 — Detecting Active Directory Password Spraying](./DE-002-AD-Password-Spray-Detection/) | One source → five disposable users; 4625, logon type 3 | **Splunk correlation validated**; screenshots pending |
+| [DE-002 — Detecting Active Directory Password Spraying](./DE-002-AD-Password-Spray-Detection/) | One source → five disposable users; 4625, logon type 3 | **Splunk correlation validated** |\n| [DE-003 — BadUSB-Initiated PowerShell Execution](./DE-003-BadUSB-PowerShell-Investigation/) | Sysmon 1+3 by ProcessGuid, PowerShell 4104 and Kali listener | **Evidence verified**; expanded analytic and screenshots pending |
 
 ## Earlier work
 
