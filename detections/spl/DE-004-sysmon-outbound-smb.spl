@@ -1,0 +1,15 @@
+# DE-004: Sysmon Event 3 outbound SMB investigation.
+# The historical one-minute search returned one System event with source port 59400.
+# This generalized version has not been independently retested as an alert.
+# An SMB event alone does not prove name-resolution poisoning.
+index=main host=WIN11 source="WinEventLog:Microsoft-Windows-Sysmon/Operational"
+| rex field=_raw "<EventID[^>]*>(?<event_id>\d+)</EventID>"
+| rex field=_raw "<Data Name=['\"]Image['\"]>(?<process_image>[^<]*)</Data>"
+| rex field=_raw "<Data Name=['\"]DestinationIp['\"]>(?<destination_ip>[^<]*)</Data>"
+| rex field=_raw "<Data Name=['\"]DestinationPort['\"]>(?<destination_port>[^<]*)</Data>"
+| rex field=_raw "<Data Name=['\"]SourcePort['\"]>(?<source_port>[^<]*)</Data>"
+| rex field=_raw "<Data Name=['\"]Initiated['\"]>(?<initiated>[^<]*)</Data>"
+| where event_id="3" AND destination_port="445" AND lower(initiated)="true"
+| stats count min(_time) AS first_seen values(process_image) AS process values(source_port) AS source_ports BY host destination_ip
+| convert ctime(first_seen)
+| sort -count

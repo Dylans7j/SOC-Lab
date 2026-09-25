@@ -18,7 +18,11 @@ A controlled Kali/NetExec exercise targeted a disposable domain account. DC01 pr
 
 [Read the full analyst report →](./case-studies/DE-001-Repeated-Failed-AD-Logons/)
 
-**New:** [DE-003 — BadUSB-Initiated PowerShell Investigation](./case-studies/DE-003-BadUSB-PowerShell-Investigation/) — observed encoded PowerShell, Sysmon process/network correlation and PowerShell 4104; candidate alert validation and screenshot upload pending.\n\n[DE-002 — Password Spraying](./case-studies/DE-002-AD-Password-Spray-Detection/) — five failed logons against five distinct lab accounts, detected in Splunk.
+**New:** [DE-004 — LLMNR/NBT-NS Poisoning](./case-studies/DE-004-LLMNR-NBTNS-Poisoning/) — documented poisoned replies, denied SMB/NTLMSSP exchange and packet-to-Sysmon port correlation. Automated network analytic pending.
+
+[DE-003 — BadUSB-Initiated PowerShell Investigation](./case-studies/DE-003-BadUSB-PowerShell-Investigation/) — observed encoded PowerShell, Sysmon process/network correlation and PowerShell 4104; candidate alert validation and alert retesting pending.
+
+[DE-002 — Password Spraying](./case-studies/DE-002-AD-Password-Spray-Detection/) — five failed logons against five distinct lab accounts, detected in Splunk.
 
 ## Browse the repository
 
@@ -38,7 +42,9 @@ A controlled Kali/NetExec exercise targeted a disposable domain account. DC01 pr
 | **WIN11 → Splunk** | Security, System, PowerShell Operational and Sysmon Operational logs indexed in `main` |
 | **Splunk receiver** | Universal Forwarders target TCP 9997 |
 | **DE-001** | Three incorrect-password network logons identified within five minutes |
-| **DE-002** | Five distinct test accounts, five incorrect-password network logons within ten minutes |\n| **DE-003** | Encoded PowerShell and TCP connection linked by Sysmon process GUID; expanded analytic pending |
+| **DE-002** | Five distinct test accounts, five incorrect-password network logons within ten minutes |
+| **DE-003** | Encoded PowerShell and TCP connection linked by Sysmon process GUID; expanded analytic pending |
+| **DE-004** | LLMNR response to SMB SYN (14.816 ms); source port 59400 also observed in WIN11 Sysmon 3 |
 | **Microsoft Sentinel** | Historical notes available; onboarding of current WIN11 endpoint **not verified** |
 
 One captured WIN11 24-hour search returned **11,892 events** (9,703 Sysmon, 1,683 Security, 406 PowerShell and 100 System). These are historical observations, not live ingest rates.
