@@ -1,0 +1,25 @@
+title: Encoded PowerShell Execution via Windows PowerShell
+id: a7248502-9132-48be-a6c0-8f7b71e8b6e3
+status: experimental
+description: >
+  Identifies encoded-command execution by Windows PowerShell. Correlate with
+  Sysmon Event ID 3 outbound connections in the companion SPL query.
+author: SOC Lab
+date: 2026-09-25
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_image:
+    Image|endswith: '\powershell.exe'
+  selection_command:
+    CommandLine|contains:
+      - ' -enc '
+      - ' -EncodedCommand '
+  condition: selection_image and selection_command
+falsepositives:
+  - Authorized IT automation using encoded commands
+  - Security products and software installers
+level: medium
+tags:
+  - attack.t1059.001

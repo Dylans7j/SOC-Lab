@@ -1,0 +1,17 @@
+# DE-003 — Encoded PowerShell followed by outbound network connection (Sysmon 1 + 3)
+# Candidate analytic: test against the documented September 25 experiment before enabling a scheduled alert.
+# TCP 4444 is the lab's selected callback port, not a general-purpose IOC.
+index=main host=WIN11 source="WinEventLog:Microsoft-Windows-Sysmon/Operational"
+| rex field=_raw "<EventID[^>]*>(?<event_id>\\d+)</EventID>"
+| rex field=_raw "<Data Name='ProcessGuid'>(?<process_guid>[^<]+)</Data>"
+| rex field=_raw "<Data Name='Image'>(?<image>[^<]+)</Data>"
+| rex field=_raw "<Data Name='CommandLine'>(?<command_line>[^<]*)</Data>"
+| rex field=_raw "<Data Name='DestinationPort'>(?<destination_port>[^<]+)</Data>"
+| eval is_powershell=if(event_id="1" AND match(lower(image),"powershell[.]exe$") AND NOT like(lower(image),"%splunk-powershell.exe"),1,0)
+| eval is_encoded=if(is_powershell=1 AND match(lower(command_line),"(?i)(?:^|[[:space:]])-(?:enc|encodedcommand)(?:[[:space:]]|$)"),1,0)
+| eval is_callback=if(event_id="3" AND destination_port="4444" AND match(lower(image),"powershell[.]exe$"),1,0)
+| stats max(is_encoded) AS encoded_execution max(is_callback) AS tcp4444_connection values(image) AS executable values(destination_port) AS ports min(eval(if(is_encoded=1,_time,null()))) AS process_time min(eval(if(is_callback=1,_time,null()))) AS connection_time BY host process_guid
+| where encoded_execution=1 AND tcp4444_connection=1 AND connection_time>=process_time AND connection_time-process_time<=120
+| eval elapsed_seconds=round(connection_time-process_time,3)
+| convert ctime(process_time) ctime(connection_time)
+| table host process_guid executable ports process_time connection_time elapsed_seconds
