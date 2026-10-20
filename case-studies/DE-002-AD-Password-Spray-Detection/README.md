@@ -134,3 +134,17 @@ index=windows host=DC01 source="WinEventLog:Security"
 **Not yet demonstrated:** Production alert scheduling, automated notification, Sentinel ingestion or KQL parity. Those require separate tests.
 
 For publication, review the [evidence package](screenshots/) to ensure screenshots are sanitized before public upload.
+
+## Detection Quality and Next Validation (October 2026)
+
+This section is a documentation review, **not a new execution or successful alert test**. The original report's observations and limitations remain authoritative.
+
+| Control | Test / interpretation | New test status |
+|---|---|---|
+| Positive | Five distinct users from one source in one ten-minute bucket | Pending repeatable validation |
+| Negative / boundary | Repeated failures against one user should not match; distributed or slow spraying may be missed | Pending repeatable validation |
+| Data quality | Check event timestamps, source attribution, extraction fields, and missing events | Pending |
+| False positives | Compare expected administrative or routine traffic against the same analytic | Pending |
+| Release gate | Preserve sanitized evidence, exact query revision, positive and negative results | Not yet complete |
+
+**Assessment:** Password spraying is useful portfolio evidence when its original verified result is presented separately from planned improvements. No additional detection coverage, automated alert delivery, or production readiness is claimed here. Follow the [detection validation protocol](../../docs/DETECTION-VALIDATION-PROTOCOL.md) for the next test.
