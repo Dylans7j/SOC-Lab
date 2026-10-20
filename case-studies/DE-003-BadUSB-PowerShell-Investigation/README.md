@@ -117,3 +117,17 @@ The [Sigma rule](../../detections/sigma/DE-003-encoded-powershell.yml) detects i
 - The expanded SPL rule, Sigma schema conversion and scheduled alert remain **pending separate validation**.
 
 **Evidence publication:** Use the five prepared **redacted** screenshot files only. Never publish the full encoded reverse-shell payload, credentials or real lab IP addresses. `192.169.70.x` is a documentation-only placeholder, not a working subnet.
+
+## Detection Quality and Next Validation (October 2026)
+
+This section is a documentation review, **not a new execution or successful alert test**. The original report's observations and limitations remain authoritative.
+
+| Control | Test / interpretation | New test status |
+|---|---|---|
+| Positive | Encoded PowerShell Sysmon 1 and same ProcessGuid Sysmon 3 to TCP 4444 within 120 seconds | Pending repeatable validation |
+| Negative / boundary | Different GUID, unrelated helper process, or connection outside window should not match | Pending repeatable validation |
+| Data quality | Check event timestamps, source attribution, extraction fields, and missing events | Pending |
+| False positives | Compare expected administrative or routine traffic against the same analytic | Pending |
+| Release gate | Preserve sanitized evidence, exact query revision, positive and negative results | Not yet complete |
+
+**Assessment:** PowerShell process/network correlation is useful portfolio evidence when its original verified result is presented separately from planned improvements. No additional detection coverage, automated alert delivery, or production readiness is claimed here. Follow the [detection validation protocol](../../docs/DETECTION-VALIDATION-PROTOCOL.md) for the next test.
