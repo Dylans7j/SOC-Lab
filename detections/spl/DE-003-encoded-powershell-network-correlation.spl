@@ -1,12 +1,14 @@
 # DE-003 — Encoded PowerShell followed by outbound network connection (Sysmon 1 + 3)
 # Candidate analytic: test against the documented September 25 experiment before enabling a scheduled alert.
 # TCP 4444 is the lab's selected callback port, not a general-purpose IOC.
+# Static review: XML extraction now accepts single or double quoted Data Name attributes.
+# Not yet replayed against captured events; verify before using as an alert.
 index=main host=WIN11 source="WinEventLog:Microsoft-Windows-Sysmon/Operational"
 | rex field=_raw "<EventID[^>]*>(?<event_id>\d+)</EventID>"
-| rex field=_raw "<Data Name='ProcessGuid'>(?<process_guid>[^<]+)</Data>"
-| rex field=_raw "<Data Name='Image'>(?<image>[^<]+)</Data>"
-| rex field=_raw "<Data Name='CommandLine'>(?<command_line>[^<]*)</Data>"
-| rex field=_raw "<Data Name='DestinationPort'>(?<destination_port>[^<]+)</Data>"
+| rex field=_raw "<Data Name=['\"]ProcessGuid['\"]>(?<process_guid>[^<]+)</Data>"
+| rex field=_raw "<Data Name=['\"]Image['\"]>(?<image>[^<]+)</Data>"
+| rex field=_raw "<Data Name=['\"]CommandLine['\"]>(?<command_line>[^<]*)</Data>"
+| rex field=_raw "<Data Name=['\"]DestinationPort['\"]>(?<destination_port>[^<]+)</Data>"
 | eval is_powershell=if(event_id="1" AND match(lower(image),"powershell[.]exe$") AND NOT like(lower(image),"%splunk-powershell.exe"),1,0)
 | eval is_encoded=if(is_powershell=1 AND match(lower(command_line),"(?i)(?:^|[[:space:]])-(?:enc|encodedcommand)(?:[[:space:]]|$)"),1,0)
 | eval is_callback=if(event_id="3" AND destination_port="4444" AND match(lower(image),"powershell[.]exe$"),1,0)

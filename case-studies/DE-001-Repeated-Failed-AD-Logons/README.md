@@ -236,3 +236,17 @@ This investigation produced a working detection and report artifact suitable for
 - Validated repeated-failure SPL detection
 - Created Sigma rule for the base event pattern
 - Documented screenshots and analysis in one incident-response-style report
+
+## Detection Quality and Next Validation (October 2026)
+
+This section is a documentation review, **not a new execution or successful alert test**. The original report's observations and limitations remain authoritative.
+
+| Control | Test / interpretation | New test status |
+|---|---|---|
+| Positive | Three failures from one source against one user within a five-minute bucket | Pending repeatable validation |
+| Negative / boundary | Three matching failures across adjacent buckets may be missed; disabled-account failures should not match | Pending repeatable validation |
+| Data quality | Check event timestamps, source attribution, extraction fields, and missing events | Pending |
+| False positives | Compare expected administrative or routine traffic against the same analytic | Pending |
+| Release gate | Preserve sanitized evidence, exact query revision, positive and negative results | Not yet complete |
+
+**Assessment:** Repeated failed logons is useful portfolio evidence when its original verified result is presented separately from planned improvements. No additional detection coverage, automated alert delivery, or production readiness is claimed here. Follow the [detection validation protocol](../../docs/DETECTION-VALIDATION-PROTOCOL.md) for the next test.
